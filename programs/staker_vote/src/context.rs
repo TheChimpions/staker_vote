@@ -21,7 +21,7 @@ pub struct CreateSimd<'info> {
     init,
     payer = user,
     space = 8 + (4 + 32) + 32 + 32 + 32 + 32 + (4 + 32) + (4 + 32),
-    seeds=[b"simd", name.as_bytes(), stake_vote.key().as_ref()],
+    seeds=[b"simd", name.as_bytes()],
     bump
   )]
   pub simd: Account<'info, Simd>,

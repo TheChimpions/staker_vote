@@ -85,7 +85,6 @@ describe("staker_vote", () => {
       [
         anchor.utils.bytes.utf8.encode("simd"),
         anchor.utils.bytes.utf8.encode("228"),
-        programPair.publicKey.toBytes(),
       ],
       program.programId
     )
@@ -148,5 +147,23 @@ describe("staker_vote", () => {
     equal(validator.name, "Chimpions")
     const account = await program.account.stakeVote.fetch(programPair.publicKey);
     equal(account.validatorCount, 1);
+  });
+
+  it ("doesn't allow non admin to create validator", async () => {
+    try {
+      await program.methods.createValidator(
+        "Fake Chimpions",
+        validator_identity.publicKey,
+        validator_vote.publicKey,
+        validator_admin.publicKey
+      )
+      .accounts({user: staker1.publicKey, stakeVote: programPair.publicKey,})
+      .signers([staker1])
+      .rpc()
+      assert.ok(false); // Should not reach this line
+    } catch (err) {
+      assert(err.message.includes("User not authorized"));
+      return
+    }
   });
 });
