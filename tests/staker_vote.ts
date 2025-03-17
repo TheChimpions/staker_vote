@@ -3,7 +3,7 @@ import { Program } from "@coral-xyz/anchor";
 import { StakerVote } from "../target/types/staker_vote";
 import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { createMint, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import assert, { equal } from "assert";
+import assert, { equal, notEqual } from "assert";
 import { use } from "chai";
 import { userInfo } from "os";
 
@@ -189,5 +189,50 @@ describe("staker_vote", () => {
       assert(err.message.includes("User not authorized"));
       return
     }
+  });
+
+  it ("creates a poll for simd", async () => {
+    let [simd_address, _bump] = await PublicKey.findProgramAddressSync(
+      [
+        anchor.utils.bytes.utf8.encode("simd"),
+        anchor.utils.bytes.utf8.encode("228"),
+      ],
+      program.programId
+    )
+
+    let [validator_address, _bump2] = await PublicKey.findProgramAddressSync(
+      [
+        anchor.utils.bytes.utf8.encode("validator"),
+        anchor.utils.bytes.utf8.encode("Chimpions"),
+      ],
+      program.programId
+    )
+
+    await program.methods.createPoll(
+      abstainAccount.publicKey,
+      "No comment",
+    )
+    .accounts({stakeVote: programPair.publicKey, user: deployer.publicKey, simd: simd_address, validator: validator_address})
+    .signers([deployer])
+    .rpc()
+
+    let [poll_address, _bump3] = await PublicKey.findProgramAddressSync(
+      [
+        anchor.utils.bytes.utf8.encode("poll"),
+        validator_address.toBuffer(),
+        simd_address.toBuffer(),
+      ],
+      program.programId
+    )
+
+    let poll = await program.account.poll.fetch(poll_address)
+    notEqual(poll.status.setup, null)
+    equal(poll.default, abstainAccount.publicKey.toBase58())
+    equal(poll.yesVotes, 0)
+    equal(poll.noVotes, 0)
+    equal(poll.abstainVotes, 0)
+    equal(poll.validatorsPosition, "No comment")
+    equal(poll.simd.toBase58(), simd_address.toBase58())
+    equal(poll.validator.toBase58(), validator_address.toBase58())
   });
 });

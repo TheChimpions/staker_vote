@@ -32,4 +32,12 @@ pub mod staker_vote {
     pub fn create_validator(ctx: Context<CreateValidator>, name: String, identity_account: Pubkey, vote_account: Pubkey, admin: Pubkey,) -> Result<()> {
         create_validator::handler(ctx, name, identity_account, vote_account, admin)
     }
+
+    pub fn create_poll(
+      ctx: Context<CreatePoll>,
+      default: Pubkey,
+      validators_position: String,
+    ) -> Result<()> {
+        create_poll::handler(ctx, default, validators_position)
+    }
 }
