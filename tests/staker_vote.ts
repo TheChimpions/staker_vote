@@ -6,6 +6,7 @@ import { createMint, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import assert, { equal, notEqual } from "assert";
 import { use } from "chai";
 import { userInfo } from "os";
+import { BN, max } from "bn.js";
 
 describe("staker_vote", () => {
   // Configure the client to use the local cluster.
@@ -169,7 +170,7 @@ describe("staker_vote", () => {
   });
 
   it ("doesn't allow non admin to create simd", async () => {
-    addFunds(staker1, 1000000000, anchor.getProvider());
+    await addFunds(staker1, 1000000000, anchor.getProvider());
     const mint = await createTestToken()
     try {
       const tx = await program.methods.createSimd(
@@ -227,18 +228,40 @@ describe("staker_vote", () => {
     }
   });
 
+  it ("doesn't allow non-admin to create a poll for validator", async () => {
+    await addFunds(validator_admin, 1000000000, anchor.getProvider());
+    let simd_address = await findSimdAddress("228")
+    let validator_address= await findValidatorAddress("Chimpions")
+    try {
+      await program.methods.createPoll(
+        abstainAccount.publicKey,
+        "No comment",
+      )
+      .accounts({stakeVote: programPair.publicKey, user: deployer.publicKey, simd: simd_address, validator: validator_address})
+      .signers([deployer])
+      .rpc()
+      assert.ok(false); // Should not reach this line
+    } catch (err) {
+      assert(err.message.includes("User not authorized"));
+      return
+    }
+  });
+
   it ("creates a poll for simd", async () => {
     let simd_address = await findSimdAddress("228")
     let validator_address= await findValidatorAddress("Chimpions")
-
-    await program.methods.createPoll(
-      abstainAccount.publicKey,
-      "No comment",
-    )
-    .accounts({stakeVote: programPair.publicKey, user: deployer.publicKey, simd: simd_address, validator: validator_address})
-    .signers([deployer])
-    .rpc()
-
+    try {
+      await program.methods.createPoll(
+        abstainAccount.publicKey,
+        "No comment",
+      )
+      .accounts({stakeVote: programPair.publicKey, user: validator_admin.publicKey, simd: simd_address, validator: validator_address})
+      .signers([validator_admin])
+      .rpc()
+    } catch (err) {
+      console.log(err)
+      err.getLogs()
+    }
     let poll = await findPoll(validator_address, simd_address);
 
     notEqual(poll.status.setup, null)
@@ -251,29 +274,87 @@ describe("staker_vote", () => {
     equal(poll.validator.toBase58(), validator_address.toBase58())
   });
 
-  // it ("creates merkle tree for poll", async () => {
-  //   const mint = await createTestToken()
-  //   let [simd_address, _bump] = await PublicKey.findProgramAddressSync(
-  //     [
-  //       anchor.utils.bytes.utf8.encode("simd"),
-  //       anchor.utils.bytes.utf8.encode("228"),
-  //     ],
-  //     program.programId
-  //   )
-  //   let [validator_address, _bump2] = await PublicKey.findProgramAddressSync(
-  //     [
-  //       anchor.utils.bytes.utf8.encode("validator"),
-  //       anchor.utils.bytes.utf8.encode("Chimpions"),
-  //     ],
-  //     program.programId
-  //   )
-  //   let [poll_address, _bump3] = await PublicKey.findProgramAddressSync(
-  //     [
-  //       anchor.utils.bytes.utf8.encode("poll"),
-  //       validator_address.toBuffer(),
-  //       simd_address.toBuffer(),
-  //     ],
-  //     program.programId
-  //   )
-  // });
+  it.skip ("returns error if user is not poll creator", async () => {
+    const mint = await createTestToken()
+    let simd_address = await findSimdAddress("228")
+    let validator_address= await findValidatorAddress("Chimpions")
+    let poll_address = await findPollAddress(validator_address, simd_address)
+    const [registryPDA] = PublicKey.findProgramAddressSync(
+      [
+        anchor.utils.bytes.utf8.encode("VoteRegistry"),
+        poll_address.toBuffer(),
+      ],
+      program.programId
+    )
+
+    const merkleRoot = Uint8Array.from(
+      Buffer.from(
+        "c69532028b6b3adf2703d2c089bcfa6a44629e58894b2f7c8fd1638b23845ddf", // FIXME: For prod change to real value
+        "hex"
+      )
+    )
+
+    const maxVotes = new BN(50000)
+    const maxNumNodes = new BN(1000)
+
+    try {
+      await program.methods.createVoteRegistry(
+        Array.from(merkleRoot), maxVotes, maxNumNodes
+      ).accounts({
+        base: deployer.publicKey,
+        adminAuth: deployer.publicKey,
+        mint: mint,
+        user: deployer.publicKey,
+        validator: validator_address,
+        simd: simd_address,
+        poll: poll_address,
+      }).signers([deployer]).rpc()
+      assert.ok(false); // Should not reach this line
+    } catch (err) {
+      assert(err.message.includes("User not authorized"));
+      return
+    }
+
+    const voteRegistry = await program.account.voteRegistry.fetch(registryPDA)
+    equal(voteRegistry.base.toBase58(), deployer.publicKey.toBase58())
+  });
+
+  it.skip ("creates merkle tree for poll", async () => {
+    const mint = await createTestToken()
+    let simd_address = await findSimdAddress("228")
+    let validator_address= await findValidatorAddress("Chimpions")
+    let poll_address = await findPollAddress(validator_address, simd_address)
+    const [registryPDA] = PublicKey.findProgramAddressSync(
+      [
+        anchor.utils.bytes.utf8.encode("VoteRegistry"),
+        poll_address.toBuffer(),
+      ],
+      program.programId
+    )
+
+    const merkleRoot = Uint8Array.from(
+      Buffer.from(
+        "c69532028b6b3adf2703d2c089bcfa6a44629e58894b2f7c8fd1638b23845ddf", // FIXME: For prod change to real value
+        "hex"
+      )
+    )
+
+    const maxVotes = new BN(50000)
+    const maxNumNodes = new BN(1000)
+
+    await program.methods.createVoteRegistry(
+      Array.from(merkleRoot), maxVotes, maxNumNodes
+    ).accounts({
+      base: deployer.publicKey,
+      adminAuth: deployer.publicKey,
+      mint: mint,
+      user: deployer.publicKey,
+      validator: validator_address,
+      simd: simd_address,
+      poll: poll_address,
+    }).signers([deployer]).rpc()
+
+    const voteRegistry = await program.account.voteRegistry.fetch(registryPDA)
+    equal(voteRegistry.base.toBase58(), deployer.publicKey.toBase58())
+  });
 });
