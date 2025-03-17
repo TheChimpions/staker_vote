@@ -49,3 +49,11 @@ pub struct CreateValidator<'info> {
   pub stake_vote: Account<'info, StakeVote>,
   pub system_program: Program<'info, System>,
 }
+
+#[derive(Accounts)]
+pub struct AddAdmin<'info> {
+  #[account(mut)]
+  pub stake_vote: Account<'info, StakeVote>,
+  #[account(mut)]
+  pub user: Signer<'info>,
+}

@@ -21,6 +21,10 @@ pub mod staker_vote {
         initialize::handler(ctx)
     }
 
+    pub fn add_admin(ctx: Context<AddAdmin>, new_admin: Pubkey) -> Result<()> {
+        add_admin::handler(ctx, new_admin)
+    }
+
     pub fn create_simd(ctx: Context<CreateSimd>, name: String, token: Pubkey, yes_account: Pubkey, no_account: Pubkey, abstain_account: Pubkey, link: String, description: String) -> Result<()> {
         create_simd::handler(ctx, name, token, yes_account, no_account, abstain_account, link, description)
     }

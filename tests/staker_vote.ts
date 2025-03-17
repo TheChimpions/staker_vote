@@ -14,6 +14,7 @@ describe("staker_vote", () => {
   const program = anchor.workspace.stakerVote as Program<StakerVote>;
   const programPair = Keypair.generate();
   const deployer = Keypair.generate();
+  const secondAdmin = Keypair.generate();
   const staker1 = Keypair.generate();
   const staker2 = Keypair.generate();
   const yesAccount = Keypair.generate();
@@ -65,6 +66,29 @@ describe("staker_vote", () => {
     equal(account.validatorCount, 0);
     equal(account.voteCount, 0);
     equal(account.admins[0].toBase58(), deployer.publicKey.toBase58());
+  });
+
+  it ("adds a second admin", async () => {
+    await program.methods.addAdmin(secondAdmin.publicKey).accounts({
+      stakeVote: programPair.publicKey,
+      user: deployer.publicKey,
+    }).signers([deployer]).rpc();
+    const account = await program.account.stakeVote.fetch(programPair.publicKey);
+    equal(account.admins.length, 2);
+    equal(account.admins[1].toBase58(), secondAdmin.publicKey.toBase58());
+  });
+
+  it ("unauthorized user cannot add an admin", async () => {
+    try {
+      await program.methods.addAdmin(staker1.publicKey).accounts({
+        stakeVote: programPair.publicKey,
+        user: staker1.publicKey,
+      }).signers([staker1]).rpc();
+      assert.ok(false); // Should not reach this line
+    } catch (err) {
+      assert(err.message.includes("User not authorized"));
+      return
+    }
   });
 
   it("creates simd for voting", async () => {
