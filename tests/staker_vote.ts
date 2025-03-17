@@ -55,6 +55,58 @@ describe("staker_vote", () => {
     return mint
   }
 
+  async function findSimdAddress(name: string) {
+    let [simd_address, _bump] = await PublicKey.findProgramAddressSync(
+      [
+        anchor.utils.bytes.utf8.encode("simd"),
+        anchor.utils.bytes.utf8.encode(name),
+      ],
+      program.programId
+    )
+    return simd_address
+  };
+
+  async function findSimd(name: string) {
+    let simd_address = await findSimdAddress(name)
+    let simd = await program.account.simd.fetch(simd_address)
+    return simd
+  };
+
+  async function findValidatorAddress(name: string) {
+    let [validator_address, _bump] = await PublicKey.findProgramAddressSync(
+      [
+        anchor.utils.bytes.utf8.encode("validator"),
+        anchor.utils.bytes.utf8.encode(name),
+      ],
+      program.programId
+    )
+    return validator_address
+  };
+
+  async function findValidator(name: string) {
+    let validator_address = await findValidatorAddress(name)
+    let validator = await program.account.validator.fetch(validator_address)
+    return validator
+  };
+
+  async function findPollAddress(validator_address: PublicKey, simd_address: PublicKey) {
+    let [poll_address, _bump] = await PublicKey.findProgramAddressSync(
+      [
+        anchor.utils.bytes.utf8.encode("poll"),
+        validator_address.toBuffer(),
+        simd_address.toBuffer(),
+      ],
+      program.programId
+    )
+    return poll_address
+  };
+
+  async function findPoll(validator_address: PublicKey, simd_address: PublicKey) {
+    let poll_address = await findPollAddress(validator_address, simd_address)
+    let poll = await program.account.poll.fetch(poll_address)
+    return poll
+  }
+
   it ("initializes the program", async () => {
     await addFunds(deployer, 1000000000, anchor.getProvider());
     const tx = await program.methods.initialize().accounts({
@@ -105,15 +157,7 @@ describe("staker_vote", () => {
     .rpc()
 
     const account = await program.account.stakeVote.fetch(programPair.publicKey);
-    let [simd_address, _bump] = await PublicKey.findProgramAddressSync(
-      [
-        anchor.utils.bytes.utf8.encode("simd"),
-        anchor.utils.bytes.utf8.encode("228"),
-      ],
-      program.programId
-    )
-
-    let simd = await program.account.simd.fetch(simd_address)
+    let simd = await findSimd("228");
     equal(simd.yesAccount.toBase58(), yesAccount.publicKey.toBase58())
     equal(simd.noAccount.toBase58(), noAccount.publicKey.toBase58())
     equal(simd.abstainAccount.toBase58(), abstainAccount.publicKey.toBase58())
@@ -156,15 +200,7 @@ describe("staker_vote", () => {
     .signers([deployer])
     .rpc()
 
-    let [validator_address, _bump] = await PublicKey.findProgramAddressSync(
-      [
-        anchor.utils.bytes.utf8.encode("validator"),
-        anchor.utils.bytes.utf8.encode("Chimpions"),
-      ],
-      program.programId
-    )
-
-    let validator = await program.account.validator.fetch(validator_address)
+    let validator = await findValidator("Chimpions")
     equal(validator.identityAccount.toBase58(), validator_identity.publicKey.toBase58())
     equal(validator.voteAccount.toBase58(), validator_vote.publicKey.toBase58())
     equal(validator.admin.toBase58(), validator_admin.publicKey.toBase58())
@@ -192,21 +228,8 @@ describe("staker_vote", () => {
   });
 
   it ("creates a poll for simd", async () => {
-    let [simd_address, _bump] = await PublicKey.findProgramAddressSync(
-      [
-        anchor.utils.bytes.utf8.encode("simd"),
-        anchor.utils.bytes.utf8.encode("228"),
-      ],
-      program.programId
-    )
-
-    let [validator_address, _bump2] = await PublicKey.findProgramAddressSync(
-      [
-        anchor.utils.bytes.utf8.encode("validator"),
-        anchor.utils.bytes.utf8.encode("Chimpions"),
-      ],
-      program.programId
-    )
+    let simd_address = await findSimdAddress("228")
+    let validator_address= await findValidatorAddress("Chimpions")
 
     await program.methods.createPoll(
       abstainAccount.publicKey,
@@ -216,16 +239,8 @@ describe("staker_vote", () => {
     .signers([deployer])
     .rpc()
 
-    let [poll_address, _bump3] = await PublicKey.findProgramAddressSync(
-      [
-        anchor.utils.bytes.utf8.encode("poll"),
-        validator_address.toBuffer(),
-        simd_address.toBuffer(),
-      ],
-      program.programId
-    )
+    let poll = await findPoll(validator_address, simd_address);
 
-    let poll = await program.account.poll.fetch(poll_address)
     notEqual(poll.status.setup, null)
     equal(poll.default, abstainAccount.publicKey.toBase58())
     equal(poll.yesVotes, 0)
@@ -235,4 +250,30 @@ describe("staker_vote", () => {
     equal(poll.simd.toBase58(), simd_address.toBase58())
     equal(poll.validator.toBase58(), validator_address.toBase58())
   });
+
+  // it ("creates merkle tree for poll", async () => {
+  //   const mint = await createTestToken()
+  //   let [simd_address, _bump] = await PublicKey.findProgramAddressSync(
+  //     [
+  //       anchor.utils.bytes.utf8.encode("simd"),
+  //       anchor.utils.bytes.utf8.encode("228"),
+  //     ],
+  //     program.programId
+  //   )
+  //   let [validator_address, _bump2] = await PublicKey.findProgramAddressSync(
+  //     [
+  //       anchor.utils.bytes.utf8.encode("validator"),
+  //       anchor.utils.bytes.utf8.encode("Chimpions"),
+  //     ],
+  //     program.programId
+  //   )
+  //   let [poll_address, _bump3] = await PublicKey.findProgramAddressSync(
+  //     [
+  //       anchor.utils.bytes.utf8.encode("poll"),
+  //       validator_address.toBuffer(),
+  //       simd_address.toBuffer(),
+  //     ],
+  //     program.programId
+  //   )
+  // });
 });
