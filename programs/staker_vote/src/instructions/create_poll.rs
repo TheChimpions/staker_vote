@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use crate::state::*;
 use crate::context::CreatePoll;
+use crate::error::Error;
 
 pub fn handler(
   ctx: Context<CreatePoll>,
@@ -8,7 +9,8 @@ pub fn handler(
   validators_position: String,
 ) -> Result<()> {
   let poll: &mut Account<'_, Poll> = &mut ctx.accounts.poll;
-  let validator: &mut Account<'_, Validator> = &mut ctx.accounts.validator;
+  let validator = &mut ctx.accounts.validator;
+  require!(validator.admin == *ctx.accounts.user.key, Error::UserNotAuthorized);
   let simd: &mut Account<'_, Simd> = &mut ctx.accounts.simd;
 
   poll.default = default;

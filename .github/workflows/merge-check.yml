@@ -1,0 +1,16 @@
+name: Chimpbot - Merge Check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request_target:
+    branches: [ main ]
+  merge_group:
+    branches: [ main ]
+
+jobs:
+  check-can-merge:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Solana Anchor Test
+        uses: mrgnlabs/anchor-test-action@v0.5
