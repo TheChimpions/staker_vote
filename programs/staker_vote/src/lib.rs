@@ -9,12 +9,14 @@ use anchor_lang::prelude::*;
 pub use constants::*;
 pub use instructions::*;
 pub use state::*;
+pub use context::*;
 
-use crate::context::*;
 declare_id!("HePAkr7Tyqtb6ApARurxhAnMzCMJLKn8nUSFo9jbFhrF");
 
 #[program]
 pub mod staker_vote {
+    use crate::context::CreateValidator;
+
     use super::*;
 
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
@@ -39,5 +41,14 @@ pub mod staker_vote {
       validators_position: String,
     ) -> Result<()> {
         create_poll::handler(ctx, default, validators_position)
+    }
+
+    pub fn create_vote_registry(
+      ctx: Context<CreateVoteRegistry>,
+      root: [u8; 32],
+      max_votes: u64,
+      max_num_voters: u64,
+    ) -> Result<()> {
+        create_vote_registry::handler(ctx, root, max_votes, max_num_voters)
     }
 }

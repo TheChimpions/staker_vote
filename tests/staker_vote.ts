@@ -2,7 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { StakerVote } from "../target/types/staker_vote";
 import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
-import { createMint, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { createMint, getOrCreateAssociatedTokenAccount, mintTo, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import assert, { equal, notEqual } from "assert";
 import { use } from "chai";
 import { userInfo } from "os";
@@ -247,7 +247,7 @@ describe("staker_vote", () => {
     }
   });
 
-  it ("creates a poll for simd", async () => {
+  it ("creates a poll for validator", async () => {
     let simd_address = await findSimdAddress("228")
     let validator_address= await findValidatorAddress("Chimpions")
     try {
@@ -274,7 +274,7 @@ describe("staker_vote", () => {
     equal(poll.validator.toBase58(), validator_address.toBase58())
   });
 
-  it.skip ("returns error if user is not poll creator", async () => {
+  it ("returns error if user is not poll creator", async () => {
     const mint = await createTestToken()
     let simd_address = await findSimdAddress("228")
     let validator_address= await findValidatorAddress("Chimpions")
@@ -314,12 +314,9 @@ describe("staker_vote", () => {
       assert(err.message.includes("User not authorized"));
       return
     }
-
-    const voteRegistry = await program.account.voteRegistry.fetch(registryPDA)
-    equal(voteRegistry.base.toBase58(), deployer.publicKey.toBase58())
   });
 
-  it.skip ("creates merkle tree for poll", async () => {
+  it ("creates merkle tree for poll", async () => {
     const mint = await createTestToken()
     let simd_address = await findSimdAddress("228")
     let validator_address= await findValidatorAddress("Chimpions")
@@ -340,21 +337,63 @@ describe("staker_vote", () => {
     )
 
     const maxVotes = new BN(50000)
-    const maxNumNodes = new BN(1000)
+    const maxNumVoters = new BN(1000)
 
     await program.methods.createVoteRegistry(
-      Array.from(merkleRoot), maxVotes, maxNumNodes
+      Array.from(merkleRoot), maxVotes, maxNumVoters
     ).accounts({
-      base: deployer.publicKey,
-      adminAuth: deployer.publicKey,
+      base: validator_admin.publicKey,
+      adminAuth: validator_admin.publicKey,
       mint: mint,
-      user: deployer.publicKey,
+      //@ts-ignore
+      voteRegistry: registryPDA,
+      user: validator_admin.publicKey,
       validator: validator_address,
       simd: simd_address,
       poll: poll_address,
-    }).signers([deployer]).rpc()
+    }).signers([validator_admin]).rpc()
 
     const voteRegistry = await program.account.voteRegistry.fetch(registryPDA)
-    equal(voteRegistry.base.toBase58(), deployer.publicKey.toBase58())
+    equal(voteRegistry.base.toBase58(), validator_admin.publicKey.toBase58())
+    equal(voteRegistry.adminAuth.toBase58(), validator_admin.publicKey.toBase58())
+    equal(voteRegistry.mint.toBase58(), mint.toBase58())
+    equal(voteRegistry.validator.toBase58(), validator_address.toBase58())
+    equal(voteRegistry.simd.toBase58(), simd_address.toBase58())
+    equal(voteRegistry.maxVotes.toString(), maxVotes.toString())
+    equal(voteRegistry.maxNumVoters.toString(), maxNumVoters.toString())
+    equal(voteRegistry.poll.toBase58(), poll_address.toBase58())
+    equal(voteRegistry.totalAmountVoted, "0")
+    equal(voteRegistry.numVotersVoted, "0")
+
+    const voteRegistryTokenAccount = await getOrCreateAssociatedTokenAccount(
+      connection,
+      deployer,
+      mint,
+      registryPDA,
+      true
+    )
+
+    const tokensToMint = 1000000
+    await mintTo(
+      connection,
+      deployer,
+      mint,
+      voteRegistryTokenAccount.address,
+      deployer,
+      tokensToMint
+    )
+
+    const voteRegistryBalance = await connection.getTokenAccountBalance(voteRegistryTokenAccount.address)
+    equal(voteRegistryBalance.value.uiAmount, tokensToMint)
+
+    //Vote
+
+    const voteIndex = 0
+    const voteAmount = 10000
+    const voteProof = [
+      "c69532028b6b3adf2703d2c089bcfa6a44629e58894b2f7c8fd1638b23845ddf"
+    ].map((proof) => Buffer.from(proof, "hex").toJSON().data)
+
+
   });
 });

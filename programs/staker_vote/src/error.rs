@@ -8,4 +8,6 @@ pub enum Error {
     StakeVoteNotInitialized,
     #[msg("User not authorized")]
     UserNotAuthorized,
+    #[msg("No votes remaining")]
+    NoVotesRemaining,
 }
